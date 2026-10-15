@@ -1,0 +1,18 @@
+name: Serditov CRM integration
+on:
+  push:
+    paths: ['serditov/**', '.github/workflows/serditov-crm.yml']
+  pull_request:
+    paths: ['serditov/**', '.github/workflows/serditov-crm.yml']
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test serditov/integration/test/*.test.mjs
+      - run: git diff --check
