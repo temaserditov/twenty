@@ -1,0 +1,4 @@
+.local/
+*.sqlite*
+*.log
+node_modules/
