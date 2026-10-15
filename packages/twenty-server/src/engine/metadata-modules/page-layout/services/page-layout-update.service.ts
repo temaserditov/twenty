@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { PageLayoutTabLayoutMode } from 'twenty-shared/types';
-import { computeDiffBetweenObjects, isDefined } from 'twenty-shared/utils';
+import {
+  computeDiffBetweenObjects,
+  fastDeepEqual,
+  isDefined,
+} from 'twenty-shared/utils';
 import { v4 } from 'uuid';
 
 import { ApplicationService } from 'src/engine/core-modules/application/application.service';
@@ -565,14 +569,6 @@ export class PageLayoutUpdateService {
     widgetsToUpdate: FlatPageLayoutWidget[];
     widgetsToDelete: FlatPageLayoutWidget[];
   } {
-    for (const widgetInput of widgets) {
-      this.validateConfigurationFieldReferences({
-        widgetInput,
-        flatFieldMetadataMaps,
-        flatObjectMetadataMaps,
-      });
-    }
-
     const widgetIdsInCurrentTabInput = new Set(
       widgets.map((widget) => widget.id),
     );
@@ -604,6 +600,33 @@ export class PageLayoutUpdateService {
       propertiesToCompare: FLAT_PAGE_LAYOUT_WIDGET_EDITABLE_PROPERTIES,
       isEntityIncluded: (entity) => entity.isActive,
     });
+
+    const resolvedExistingWidgetsById = new Map(
+      resolvedExistingWidgets.map((widget) => [widget.id, widget]),
+    );
+
+    for (const widgetInput of [
+      ...entitiesToCreate,
+      ...entitiesToUpdate,
+      ...entitiesToRestoreAndUpdate,
+    ]) {
+      // Widgets whose field references are unchanged are not re-validated, so a
+      // chart pointing at a since-deactivated field does not block saving the layout
+      if (
+        this.hasSameFieldReferencingProperties({
+          widgetInput,
+          existingWidget: resolvedExistingWidgetsById.get(widgetInput.id),
+        })
+      ) {
+        continue;
+      }
+
+      this.validateConfigurationFieldReferences({
+        widgetInput,
+        flatFieldMetadataMaps,
+        flatObjectMetadataMaps,
+      });
+    }
 
     const now = new Date();
 
@@ -882,6 +905,24 @@ export class PageLayoutUpdateService {
   }): string[] {
     return idsToRemove.filter(
       (widgetId) => !widgetIdsAcrossAllTabs.has(widgetId),
+    );
+  }
+
+  private hasSameFieldReferencingProperties({
+    widgetInput,
+    existingWidget,
+  }: {
+    widgetInput: UpdatePageLayoutWidgetWithIdInput;
+    existingWidget?: FlatPageLayoutWidget;
+  }): boolean {
+    if (!isDefined(existingWidget)) {
+      return false;
+    }
+
+    return (
+      widgetInput.type === existingWidget.type &&
+      widgetInput.objectMetadataId === existingWidget.objectMetadataId &&
+      fastDeepEqual(widgetInput.configuration, existingWidget.configuration)
     );
   }
 

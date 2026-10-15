@@ -240,6 +240,17 @@ describe('Page layout with tabs update should fail', () => {
 
       testFilterFieldDeleted = true;
 
+      const tabsWithEditedChart = tabs.map((tab) => ({
+        ...tab,
+        widgets: tab.widgets.map((widget) => ({
+          ...widget,
+          configuration: {
+            ...chartConfiguration,
+            aggregateOperation: AggregateOperations.SUM,
+          },
+        })),
+      }));
+
       const { errors } = await updateOnePageLayoutWithTabsAndWidgets({
         expectToFail: true,
         input: {
@@ -247,7 +258,7 @@ describe('Page layout with tabs update should fail', () => {
           name: 'Deleted Filter Field Layout',
           type: PageLayoutType.RECORD_PAGE,
           objectMetadataId: null,
-          tabs,
+          tabs: tabsWithEditedChart,
         },
       });
 
