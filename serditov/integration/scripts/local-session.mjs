@@ -13,12 +13,21 @@ async function graphql(query, variables = {}, token) {
     body: JSON.stringify({query, variables}),
   });
   const result = await response.json();
-  if (result.errors) throw new Error(`local_auth_failed: ${result.errors.map(e => e.message).join('; ')}`);
+  if (result.errors) throw new Error('local_auth_failed');
   return result.data;
+}
+const email = 'crm-local@serditov.example';
+const checked = await graphql('query($email:String!){checkUserExists(email:$email){exists availableWorkspacesCount}}', {email});
+if (checked.checkUserExists.availableWorkspacesCount === 0) {
+  const operation = checked.checkUserExists.exists ? 'signIn' : 'signUp';
+  const signed = await graphql(`mutation($email:String!,$password:String!){${operation}(email:$email,password:$password){tokens{accessOrWorkspaceAgnosticToken{token}}}}`, {
+    email, password: process.env.CRM_LOCAL_ADMIN_PASSWORD,
+  });
+  await graphql('mutation{signUpInNewWorkspace(input:{displayName:"Serditov CRM — локальная проверка"}){workspace{id}}}', {}, signed[operation].tokens.accessOrWorkspaceAgnosticToken.token);
 }
 async function authenticate() {
 const login = await graphql('mutation($email:String!,$password:String!,$origin:String!){getLoginTokenFromCredentials(email:$email,password:$password,origin:$origin){loginToken{token}}}', {
-  email: 'crm-local@serditov.example', password: process.env.CRM_LOCAL_ADMIN_PASSWORD, origin,
+  email, password: process.env.CRM_LOCAL_ADMIN_PASSWORD, origin,
 });
 const auth = await graphql('mutation($loginToken:String!,$origin:String!){getAuthTokensFromLoginToken(loginToken:$loginToken,origin:$origin){tokens{accessOrWorkspaceAgnosticToken{token expiresAt}}}}', {
   loginToken: login.getLoginTokenFromCredentials.loginToken.token, origin,
